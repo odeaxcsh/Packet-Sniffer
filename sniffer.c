@@ -24,47 +24,48 @@ int message_type(struct TCP_IP_packet pakcet)
 void HTTP_message_analyser(const char *message, int len)
 {
     char *message_cpy = (char *)malloc((len + 1) * sizeof(char));
-    strcpy(message_cpy, message);
+    strncpy(message_cpy, message, len);
     message_cpy[len] = '\0';
 
     char *type = strtok(message_cpy, "/ ");
-    char status_line[BUFFERS_SIZE];
     if(!strcmp(type, "HTTP")) { //Message is a response
         char *version = strtok(NULL, " ");
         char *status_code = strtok(NULL, " ");
         char *phrase = strtok(NULL, "\r");
-        sprintf(status_line, "%s/%s: %s[%s]", type, version, phrase, status_code);
+        syslog(LOG_INFO, "[Status line: %s/%s: %s[%s]]", type, version, phrase, status_code);
     } else if(!strcmp(type, "GET") || !strcmp(type, "POST")) { //Message is a request
         char *request = type;
         char *argument = strtok(NULL, " ");
         type = strtok(NULL, "/");
         char *version = strtok(NULL, "\r");
-        sprintf(status_line, "%s-%s: %s(%s)", type, version, request, argument);
-    } else return;
+        syslog(LOG_INFO, "[Status line: %s-%s: %s(%s)]", type, version, request, argument);
+    } else {
+        message_cpy[strlen(type)] = ' ';
+        syslog(LOG_INFO, "HTTP Content: %s", message_cpy);
+    }
 
     char *names_values[BUFFERS_SIZE];
-    char header[BUFFERS_SIZE] = { 0 };
     int num = 0;
     do {
         names_values[num++] = strtok(NULL, "\n:"); 
         names_values[num++] = strtok(NULL, "\r");
     } while(strcmp("\r", names_values[num-2]));
     for(int i = 0; i < (num-2); i+=2)
-        sprintf(header + strlen(header), "%s = %s\n", names_values[i], names_values[i+1]);
-    syslog(LOG_INFO, "Status:%s \nheaders: %s\n", status_line, header);
+        syslog(LOG_INFO, "[Header: %s = %s]", names_values[i], names_values[i+1]);
     free(message_cpy);
 }
 
-void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_char *packet)
+void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
     struct TCP_IP_packet formatted = format(packet, pkthdr->len);
-    char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN], packet_info[BUFFERS_SIZE];
+    char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(formatted.IP->dest), source, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &(formatted.IP->source), dest, INET_ADDRSTRLEN);
-    sprintf(packet_info, "Souce: %s:%d\n""Destn: %s:%d\n""Recieved at: %ld:%06ld\n""packet length: %d\n""Message length: %d\n",
-    source, reverse_bytes(formatted.TCP->source_port), dest, reverse_bytes(formatted.TCP->dest_port), (const long int)(pkthdr->ts.tv_sec), (const long int)(pkthdr->ts.tv_usec), pkthdr->len ,formatted.message_len);
-
-    syslog(LOG_INFO, "A packet captured: \n%s\n", packet_info);
+    syslog(LOG_INFO, "[%03u]: A packet captured", ++(*((int *)arg)));
+    syslog(LOG_INFO, "Source: %s:%d", source, reverse_bytes(formatted.TCP->source_port));
+    syslog(LOG_INFO, "Desten: %s:%d", dest, reverse_bytes(formatted.TCP->dest_port));
+    syslog(LOG_INFO, "packet length: %d", pkthdr->len);
+    syslog(LOG_INFO, "Message length: %d", formatted.message_len);
     if(message_type(formatted) == HTTP) {
         HTTP_message_analyser(formatted.message, formatted.message_len);
     }
@@ -84,6 +85,7 @@ int main(int argc, char *argv[])
             return 1;
         } 
     }
+
     syslog(LOG_INFO, "Running on device: %s", device_name);
 
     bpf_u_int32 mask, net;
@@ -110,7 +112,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    pcap_loop(handle, -1, call_back_function, NULL);
+    int count = 0;
+    pcap_loop(handle, -1, call_back_function, &count);
     pcap_close(handle);
 }
 

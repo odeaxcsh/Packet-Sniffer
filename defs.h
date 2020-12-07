@@ -69,7 +69,7 @@ struct TCP_IP_packet format(const u_char *packet, int pakcet_len)
     formatted_packet.TCP = (struct TCP_header*)(packet + ETHERNET_LEN + ip_size);
     u_char tcp_size = TCP_header_len(formatted_packet.TCP);
     formatted_packet.message = (packet + ETHERNET_LEN + ip_size + tcp_size);
-    formatted_packet.message_len = pakcet_len - ETHERNET_LEN + ip_size + tcp_size;
+    formatted_packet.message_len = pakcet_len - (ETHERNET_LEN + ip_size + tcp_size);
     return formatted_packet;
 }
 
