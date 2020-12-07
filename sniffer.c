@@ -42,6 +42,7 @@ void HTTP_message_analyser(const char *message, int len)
     } else {
         message_cpy[strlen(type)] = ' ';
         syslog(LOG_INFO, "HTTP Content: %s", message_cpy);
+        return;
     }
 
     char *names_values[BUFFERS_SIZE];
