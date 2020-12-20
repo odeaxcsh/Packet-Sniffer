@@ -41,8 +41,16 @@ void HTTP_message_analyser(const char *message, int len)
         syslog(LOG_INFO, "[Status line: %s-%s: %s(%s)]", type, version, request, argument);
     } else {
         message_cpy[strlen(type)] = ' ';
-        syslog(LOG_INFO, "HTTP Content: %s", message_cpy);
-        return;
+        char *head = message_cpy, *current = message_cpy;
+        while((head - message_cpy) < len-1) {
+            if(*current == '\n' || *current == '\0') {
+                *current = '\0';
+                syslog(LOG_INFO, "HTTP Content: %s", head);
+                head = current + 1;
+            } else if(!isprint(*current))
+                *current = '.';
+            ++current;
+        } return;
     }
 
     char *names_values[BUFFERS_SIZE];
