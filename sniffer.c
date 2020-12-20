@@ -16,9 +16,13 @@ u_short reverse_bytes(u_short origin)
     return reversed;
 }
 
-int message_type(struct TCP_IP_packet pakcet)
+int message_type(struct Formatted_packet packet)
 {
-    return HTTP;
+    if(packet.transport_type == TCP) 
+        return HTTP;
+    else if(packet.transport_type == UDP)
+        return DNS;
+    else return UNSUPPORTED;
 }
 
 void HTTP_message_analyser(const char *message, int len)
@@ -66,17 +70,29 @@ void HTTP_message_analyser(const char *message, int len)
 
 void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
-    struct TCP_IP_packet formatted = format(packet, pkthdr->len);
+    struct Formatted_packet formatted = format(packet, pkthdr->len);
+    int msg_type = message_type(formatted);
     char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(formatted.IP->dest), source, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &(formatted.IP->source), dest, INET_ADDRSTRLEN);
+    u_short source_port = *((u_short*)formatted.transport_header), dest_port = *((u_short*)formatted.transport_header + sizeof(u_short));
     syslog(LOG_INFO, "[%03u]: A packet captured", ++(*((int *)arg)));
-    syslog(LOG_INFO, "Source: %s:%d", source, reverse_bytes(formatted.TCP->source_port));
-    syslog(LOG_INFO, "Desten: %s:%d", dest, reverse_bytes(formatted.TCP->dest_port));
+    syslog(LOG_INFO, "Message Type: [%s]=[%s]=[%s]", "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
+    syslog(LOG_INFO, "Source: %s:%d", source, reverse_bytes(source_port));
+    syslog(LOG_INFO, "Desten: %s:%d", dest, reverse_bytes(dest_port));
     syslog(LOG_INFO, "packet length: %d", pkthdr->len);
     syslog(LOG_INFO, "Message length: %d", formatted.message_len);
-    if(message_type(formatted) == HTTP) {
+
+    switch (msg_type)
+    {
+    case HTTP:
         HTTP_message_analyser(formatted.message, formatted.message_len);
+        break;
+
+    case DNS:
+    
+    default:
+        break;
     }
 }
 
