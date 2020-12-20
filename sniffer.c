@@ -3,18 +3,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <arpa/inet.h>
 
 #include "defs.h"
-
-u_short reverse_bytes(u_short origin)
-{
-    u_short reversed = 0;
-    for(int i = 0; i < sizeof(origin); ++i) {
-        reversed =  reversed*256 + (origin%256);
-        origin /= 256;
-    }
-    return reversed;
-}
 
 int message_type(struct Formatted_packet packet)
 {
@@ -77,9 +68,9 @@ void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_cha
     inet_ntop(AF_INET, &(formatted.IP->source), dest, INET_ADDRSTRLEN);
     u_short source_port = *((u_short*)formatted.transport_header), dest_port = *((u_short*)formatted.transport_header + sizeof(u_short));
     syslog(LOG_INFO, "[%03u]: A packet captured", ++(*((int *)arg)));
-    syslog(LOG_INFO, "Message Type: [%s]=[%s]=[%s]", "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
-    syslog(LOG_INFO, "Source: %s:%d", source, reverse_bytes(source_port));
-    syslog(LOG_INFO, "Desten: %s:%d", dest, reverse_bytes(dest_port));
+    syslog(LOG_INFO, "Prtocols: [%s][%s][%s]", "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
+    syslog(LOG_INFO, "Source: %s:%d", source, ntohs(source_port));
+    syslog(LOG_INFO, "Desten: %s:%d", dest, ntohs(dest_port));
     syslog(LOG_INFO, "packet length: %d", pkthdr->len);
     syslog(LOG_INFO, "Message length: %d", formatted.message_len);
 
