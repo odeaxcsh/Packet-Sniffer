@@ -5,13 +5,14 @@
 #include <syslog.h>
 #include <arpa/inet.h>
 
+#include "dns_header.h"
 #include "defs.h"
 
 int message_type(struct Formatted_packet packet)
 {
-    if(packet.transport_type == TCP) 
+    if(packet.transport_type == TCP && (packet.message_len))
         return HTTP;
-    else if(packet.transport_type == UDP)
+    else if(packet.transport_type == UDP && (packet.message_len))
         return DNS;
     else return UNSUPPORTED;
 }
@@ -63,12 +64,20 @@ void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_cha
 {
     struct Formatted_packet formatted = format(packet, pkthdr->len);
     int msg_type = message_type(formatted);
+    if(msg_type == UNSUPPORTED)
+        return;
     char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(formatted.IP->dest), source, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &(formatted.IP->source), dest, INET_ADDRSTRLEN);
-    u_short source_port = *((u_short*)formatted.transport_header), dest_port = *((u_short*)formatted.transport_header + sizeof(u_short));
-    syslog(LOG_INFO, "[%03u]: A packet captured", ++(*((int *)arg)));
-    syslog(LOG_INFO, "Prtocols: [%s][%s][%s]", "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
+    u_short source_port, dest_port;
+    if(formatted.transport_type == TCP) {
+        struct TCP_header *tcp = (struct TCP_header*)formatted.transport_header;
+        source_port = tcp->source_port, dest_port = tcp->dest_port;
+    } else if(formatted.transport_type == UDP) {
+        struct UDP_header *udp = (struct UDP_header*)formatted.transport_header;
+        source_port = udp->source_port, dest_port = udp->dest_port; 
+    }
+    syslog(LOG_INFO, "(%03u):packet captured: [%s][%s][%s]", ++(*((int *)arg)), "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
     syslog(LOG_INFO, "Source: %s:%d", source, ntohs(source_port));
     syslog(LOG_INFO, "Desten: %s:%d", dest, ntohs(dest_port));
     syslog(LOG_INFO, "packet length: %d", pkthdr->len);
@@ -81,7 +90,7 @@ void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_cha
         break;
 
     case DNS:
-    
+        DNS_message_analyser(formatted.message, formatted.message_len);
     default:
         break;
     }
@@ -90,7 +99,6 @@ void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_cha
 int main(int argc, char *argv[])
 {
     char *device_name, pcap_error[PCAP_ERRBUF_SIZE] = { 0 };
-
     openlog("Sniffer", 0, LOG_USER);
     if(argc >= 2)
         device_name = argv[1];
@@ -117,7 +125,7 @@ int main(int argc, char *argv[])
     }
 
     struct bpf_program compiled;
-    char filter_expression[] = "tcp port 80 && ((ip && (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)) || (ip6 && ((ip6[4:2] << 1) != 0)))";
+    char filter_expression[] = "tcp port 80 || udp port 53";
     if(pcap_compile(handle, &compiled, filter_expression, 0, net) == -1) {
         syslog(LOG_ERR, "Couldn't compile filter expression '%s'", filter_expression);
         return 1;

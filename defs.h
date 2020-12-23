@@ -9,17 +9,12 @@
 #define ETHERNET_ADDR_LEN 6
 #define ETHERNET_LEN (2*ETHERNET_ADDR_LEN + 2)
 
-const char *message_types_names[] = 
-{
-    "UNSUPPORTED",
-    "HTTP",
-    "DNS"
-};
+extern const char *message_types_names[];
 
 enum MESSAGES_TYPES
 {
     HTTP = 1,
-    DNS
+    DNS = 2
 };
 
 struct Ethernet_header
@@ -44,17 +39,12 @@ struct IP_header
     struct in_addr source, dest;
 };
 
-const char *transport_header_types_names[] = 
-{
-    "UNSUPPORTED",
-    "TCP",
-    "UDP"
-};
+extern const char *transport_header_types_names[];
 
 enum transport_header_type
 {
     TCP = 1,
-    UDP
+    UDP = 2
 };
 
 struct TCP_header
@@ -91,31 +81,5 @@ struct Formatted_packet
     u_int message_len;
 };
 
-struct Formatted_packet format(const u_char *packet, int pakcet_len)
-{
-    struct Formatted_packet formatted_packet;
-    formatted_packet.ethernet = (struct Ethernet_header*)(packet);
-    formatted_packet.IP = (struct IP_header*)(packet + ETHERNET_LEN);
-    u_char ip_size = IP_header_len(formatted_packet.IP);
-    formatted_packet.transport_header = (struct TCP_header*)(packet + ETHERNET_LEN + ip_size);
-    u_char transport_size = 0;
-    switch (formatted_packet.IP->protocol)
-    {
-    case 0x06:
-        formatted_packet.transport_type = TCP;
-        transport_size = TCP_header_len(formatted_packet.transport_header);
-
-        break;
-    case 0x17:
-        formatted_packet.transport_type = UDP;
-        transport_size = sizeof(struct UDP_header);
-    default:
-        formatted_packet.transport_type = UNSUPPORTED;
-        transport_size = 0;
-    }
-    formatted_packet.message = (packet + ETHERNET_LEN + ip_size + transport_size);
-    formatted_packet.message_len = pakcet_len - (ETHERNET_LEN + ip_size + transport_size);
-    return formatted_packet;
-}
-
+struct Formatted_packet format(const u_char*, int);
 #endif
