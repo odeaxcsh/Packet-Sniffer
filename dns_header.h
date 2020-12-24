@@ -3,6 +3,8 @@
 
 #include <netinet/in.h>
 
+#define DNS_header_size (sizeof(struct DNS_header))
+
 struct DNS_header
 {
     u_short id;
@@ -18,6 +20,7 @@ struct DNS_header
 
 extern const char *dns_response_codes_map[];
 extern const char *dns_operation_codes_map[];
+void format_dns_names(const u_char*, char*);
 const char *dns_type(u_short);
 
 void DNS_message_analyser(const u_char*, int);
