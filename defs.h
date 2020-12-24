@@ -5,12 +5,16 @@
 
 #define BUFFERS_SIZE 1024
 
+#define UNSUPPORTED 0
 #define ETHERNET_ADDR_LEN 6
 #define ETHERNET_LEN (2*ETHERNET_ADDR_LEN + 2)
 
+extern const char *message_types_names[];
+
 enum MESSAGES_TYPES
 {
-    HTTP
+    HTTP = 1,
+    DNS = 2
 };
 
 struct Ethernet_header
@@ -35,6 +39,14 @@ struct IP_header
     struct in_addr source, dest;
 };
 
+extern const char *transport_header_types_names[];
+
+enum transport_header_type
+{
+    TCP = 1,
+    UDP = 2
+};
+
 struct TCP_header
 {
     u_short source_port;
@@ -43,34 +55,31 @@ struct TCP_header
     u_int acknowledgment_number;
     u_char header_len;
     u_char flags;
-        #define TCP_header_len(tcp_header) ((((tcp_header)->header_len) & 0xf0) >> 2)
-        #define TCP_flags(tcp_header) (((tcp_header)->flags) | ((((tcp_header)->header_len) & 0x0f) << 8))
+        #define TCP_header_len(tcp_header) (((((struct TCP_header*)tcp_header)->header_len) & 0xf0) >> 2)
+        #define TCP_flags(tcp_header) ((((struct TCP_header*)tcp_header)->flags) | ((((tcp_header)->header_len) & 0x0f) << 8))
     
     u_short window_size;
     u_short check_sum;
     u_short urgent;
 };
 
-struct TCP_IP_packet
+struct UDP_header
+{
+    u_short source_port;
+    u_short dest_port;
+    u_short length;
+    u_short checksum;
+};
+
+struct Formatted_packet
 {
     const struct Ethernet_header *ethernet;
     const struct IP_header *IP;
-    const struct TCP_header *TCP;
+    const void *transport_header;
+    int transport_type;
     const u_char *message;
     u_int message_len;
 };
 
-struct TCP_IP_packet format(const u_char *packet, int pakcet_len)
-{
-    struct TCP_IP_packet formatted_packet;
-    formatted_packet.ethernet = (struct Ethernet_header*)(packet);
-    formatted_packet.IP = (struct IP_header*)(packet + ETHERNET_LEN);
-    u_char ip_size = IP_header_len(formatted_packet.IP);
-    formatted_packet.TCP = (struct TCP_header*)(packet + ETHERNET_LEN + ip_size);
-    u_char tcp_size = TCP_header_len(formatted_packet.TCP);
-    formatted_packet.message = (packet + ETHERNET_LEN + ip_size + tcp_size);
-    formatted_packet.message_len = pakcet_len - (ETHERNET_LEN + ip_size + tcp_size);
-    return formatted_packet;
-}
-
+struct Formatted_packet format(const u_char*, int);
 #endif

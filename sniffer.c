@@ -3,22 +3,18 @@
 #include <string.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <arpa/inet.h>
 
+#include "dns_header.h"
 #include "defs.h"
 
-u_short reverse_bytes(u_short origin)
+int message_type(struct Formatted_packet packet)
 {
-    u_short reversed = 0;
-    for(int i = 0; i < sizeof(origin); ++i) {
-        reversed =  reversed*256 + (origin%256);
-        origin /= 256;
-    }
-    return reversed;
-}
-
-int message_type(struct TCP_IP_packet pakcet)
-{
-    return HTTP;
+    if(packet.transport_type == TCP && (packet.message_len))
+        return HTTP;
+    else if(packet.transport_type == UDP && (packet.message_len))
+        return DNS;
+    else return UNSUPPORTED;
 }
 
 void HTTP_message_analyser(const char *message, int len)
@@ -41,8 +37,16 @@ void HTTP_message_analyser(const char *message, int len)
         syslog(LOG_INFO, "[Status line: %s-%s: %s(%s)]", type, version, request, argument);
     } else {
         message_cpy[strlen(type)] = ' ';
-        syslog(LOG_INFO, "HTTP Content: %s", message_cpy);
-        return;
+        char *head = message_cpy, *current = message_cpy;
+        while((head - message_cpy) < len-1) {
+            if(*current == '\n' || *current == '\0') {
+                *current = '\0';
+                syslog(LOG_INFO, "HTTP Content: %s", head);
+                head = current + 1;
+            } else if(!isprint(*current))
+                *current = '.';
+            ++current;
+        } return;
     }
 
     char *names_values[BUFFERS_SIZE];
@@ -58,24 +62,43 @@ void HTTP_message_analyser(const char *message, int len)
 
 void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
-    struct TCP_IP_packet formatted = format(packet, pkthdr->len);
+    struct Formatted_packet formatted = format(packet, pkthdr->len);
+    int msg_type = message_type(formatted);
+    if(msg_type == UNSUPPORTED)
+        return;
     char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(formatted.IP->dest), source, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &(formatted.IP->source), dest, INET_ADDRSTRLEN);
-    syslog(LOG_INFO, "[%03u]: A packet captured", ++(*((int *)arg)));
-    syslog(LOG_INFO, "Source: %s:%d", source, reverse_bytes(formatted.TCP->source_port));
-    syslog(LOG_INFO, "Desten: %s:%d", dest, reverse_bytes(formatted.TCP->dest_port));
+    u_short source_port, dest_port;
+    if(formatted.transport_type == TCP) {
+        struct TCP_header *tcp = (struct TCP_header*)formatted.transport_header;
+        source_port = tcp->source_port, dest_port = tcp->dest_port;
+    } else if(formatted.transport_type == UDP) {
+        struct UDP_header *udp = (struct UDP_header*)formatted.transport_header;
+        source_port = udp->source_port, dest_port = udp->dest_port; 
+    }
+    syslog(LOG_INFO, "(%03u):packet captured: [%s][%s][%s]", ++(*((int *)arg)), "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
+    syslog(LOG_INFO, "Source: %s:%d", source, ntohs(source_port));
+    syslog(LOG_INFO, "Desten: %s:%d", dest, ntohs(dest_port));
     syslog(LOG_INFO, "packet length: %d", pkthdr->len);
     syslog(LOG_INFO, "Message length: %d", formatted.message_len);
-    if(message_type(formatted) == HTTP) {
+
+    switch (msg_type)
+    {
+    case HTTP:
         HTTP_message_analyser(formatted.message, formatted.message_len);
+        break;
+
+    case DNS:
+        DNS_message_analyser(formatted.message, formatted.message_len);
+    default:
+        break;
     }
 }
 
 int main(int argc, char *argv[])
 {
     char *device_name, pcap_error[PCAP_ERRBUF_SIZE] = { 0 };
-
     openlog("Sniffer", 0, LOG_USER);
     if(argc >= 2)
         device_name = argv[1];
@@ -102,7 +125,7 @@ int main(int argc, char *argv[])
     }
 
     struct bpf_program compiled;
-    char filter_expression[] = "tcp port 80 && ((ip && (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)) || (ip6 && ((ip6[4:2] << 1) != 0)))";
+    char filter_expression[] = "tcp port 80 || udp port 53";
     if(pcap_compile(handle, &compiled, filter_expression, 0, net) == -1) {
         syslog(LOG_ERR, "Couldn't compile filter expression '%s'", filter_expression);
         return 1;
