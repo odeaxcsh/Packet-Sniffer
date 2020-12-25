@@ -36,7 +36,8 @@ struct IP_header
     u_char time_to_live;
     u_char protocol;
     u_short check_sum;
-    struct in_addr source, dest;
+    struct in_addr dest;
+    struct in_addr source;
 };
 
 extern const char *transport_header_types_names[];
