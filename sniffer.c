@@ -1,12 +1,23 @@
 #include <pcap.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <arpa/inet.h>
+
+#define INPUTS_TIMEOUT 3 //seconds
 
 #include "dns_header.h"
 #include "defs.h"
+
+int isnumber(const char *string) {
+   char *end = NULL;
+   strtol(string, &end, 0);
+   return end && !(*end);
+}
 
 int message_type(struct Formatted_packet packet)
 {
@@ -98,46 +109,95 @@ void call_back_function(void *arg, const struct pcap_pkthdr *pkthdr, const u_cha
 
 int main(int argc, char *argv[])
 {
-    char *device_name, pcap_error[PCAP_ERRBUF_SIZE] = { 0 };
+    char *device_name = NULL, pcap_error[PCAP_ERRBUF_SIZE] = { 0 };
     openlog("Sniffer", 0, LOG_USER);
     if(argc >= 2)
         device_name = argv[1];
     else {
-        syslog(LOG_DEBUG, "Using default device...");
-        if ( (device_name = pcap_lookupdev(pcap_error)) == NULL) {
-            syslog(LOG_ERR, "Couldn't find default device: %s", pcap_error);
+        pcap_if_t *alldevs, *iterator;
+
+        if(pcap_findalldevs(&alldevs, pcap_error) == -1) {
+            printf("Couldn't find devices due to: %s\n", pcap_error);
             return 1;
-        } 
+        }
+
+        int dev_count;
+        for(dev_count = 0, iterator = alldevs; iterator; iterator = iterator->next, ++dev_count)
+            printf("[%01d]-%-15s\t %s\n", dev_count+1, iterator->name, iterator->description);
+        
+        fd_set rfds;
+        struct timeval tv;
+        tv.tv_usec = 0;
+        while(device_name == NULL) {
+            FD_ZERO(&rfds);
+            FD_SET(0, &rfds);
+            tv.tv_sec = INPUTS_TIMEOUT;
+
+            printf("Which device you want to sniff? Enter device name or device number:(Time limitation: %ds): ", INPUTS_TIMEOUT);
+            fflush(stdout);
+            if(select(1, &rfds, NULL, NULL, &tv)) {
+                char input[1024] = { 0 };
+                scanf("%s", input);
+                if(isnumber(input)) {
+                    int dev_num = 0;
+                    sscanf(input, "%d", &dev_num);
+                    if(dev_num <= dev_count) {
+                        iterator = alldevs;
+                        for(int i = 1; i < dev_num; ++i, iterator = iterator->next);
+                        device_name = iterator->name;
+                    } else printf("Invalid Number\n"
+                                  "Try again\n");
+                } else {
+                    for(iterator = alldevs; iterator; iterator = iterator->next)
+                        if(!strcmp(iterator->name, input)) 
+                            break;
+                    
+                    if(iterator == NULL)
+                        printf("No such a device\n" 
+                        "Try again\n");
+                    else device_name = iterator->name;
+                }
+            } else {
+                printf("Timed out \n"
+                "Using default device...\n");
+                if ((device_name = pcap_lookupdev(pcap_error)) == NULL) {
+                    printf("Couldn't find default device: %s\n", pcap_error);
+                    return 1;
+                }
+            }
+        }
+        device_name = strdup(device_name);
+        pcap_freealldevs(alldevs);
     }
 
-    syslog(LOG_INFO, "Running on device: %s", device_name);
+    printf("Running on device: %s\n", device_name);
 
     bpf_u_int32 mask, net;
     if(pcap_lookupnet(device_name, &net, &mask, pcap_error) == -1) {
-        syslog(LOG_ERR, "Couldn't get netmask for device %s: %s", device_name, pcap_error);
+        printf("Couldn't get netmask for device %s: %s\n", device_name, pcap_error);
         return 1;
     }
 
     pcap_t *handle = pcap_open_live(device_name, BUFSIZ, 1, 1000, pcap_error);
     if(handle == NULL) {
-        syslog(LOG_ERR, "Couldn't open device %s: %s", device_name, pcap_error);
+        printf(LOG_ERR, "Couldn't open device %s: %s\n", device_name, pcap_error);
         return 1;
     }
 
     struct bpf_program compiled;
     char filter_expression[] = "tcp port 80 || udp port 53";
     if(pcap_compile(handle, &compiled, filter_expression, 0, net) == -1) {
-        syslog(LOG_ERR, "Couldn't compile filter expression '%s'", filter_expression);
+        printf("Couldn't compile filter expression '%s'\n", filter_expression);
         return 1;
     }
 
     if(pcap_setfilter(handle, &compiled) == -1) {
-        syslog(LOG_ERR, "Couldn't set filter on device: %s", pcap_geterr(handle));
+        printf("Couldn't set filter on device: %s\n", pcap_geterr(handle));
         return 1;
     }
 
     int count = 0;
     pcap_loop(handle, -1, call_back_function, &count);
     pcap_close(handle);
+    free(device_name);
 }
-
