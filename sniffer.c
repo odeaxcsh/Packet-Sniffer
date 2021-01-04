@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
 
             printf("Which device you want to sniff? Enter device name or device number:(Time limitation: %ds): ", INPUTS_TIMEOUT);
             fflush(stdout);
+
             if(select(1, &rfds, NULL, NULL, &tv)) {
                 char input[1024] = { 0 };
                 scanf("%s", input);
@@ -145,25 +146,20 @@ int main(int argc, char *argv[])
                         iterator = alldevs;
                         for(int i = 1; i < dev_num; ++i, iterator = iterator->next);
                         device_name = iterator->name;
-                    } else printf("Invalid Number\n"
-                                  "Try again\n");
+                    } else printf("Invalid Number\n");
                 } else {
                     for(iterator = alldevs; iterator; iterator = iterator->next)
                         if(!strcmp(iterator->name, input)) 
                             break;
                     
                     if(iterator == NULL)
-                        printf("No such a device\n" 
-                        "Try again\n");
+                        printf("No such a device\n");
                     else device_name = iterator->name;
                 }
             } else {
                 printf("Timed out \n"
                 "Using default device...\n");
-                if ((device_name = pcap_lookupdev(pcap_error)) == NULL) {
-                    printf("Couldn't find default device: %s\n", pcap_error);
-                    return 1;
-                }
+                device_name = alldevs->name;
             }
         }
         device_name = strdup(device_name);

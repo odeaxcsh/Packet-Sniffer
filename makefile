@@ -8,7 +8,7 @@ all: dns_header.o defs.o
 dns_header.o:
 	gcc -c dns_header.c -o dns_header.o
 
- defs.o:
+defs.o:
 	gcc -c defs.c -o defs.o
 
 clean:
