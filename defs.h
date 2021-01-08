@@ -82,5 +82,16 @@ struct Formatted_packet
     u_int message_len;
 };
 
+struct Conversation
+{
+    u_short dest_port;
+    u_short source_port;
+    struct in_addr dest_ip;
+    struct in_addr source_ip;
+    int packet_count;
+    int total_packet_len;
+    int totoal_packet_payload_len;
+};
+
 struct Formatted_packet format(const u_char*, int);
 #endif

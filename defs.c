@@ -1,4 +1,4 @@
-#include <netinet/in.h>
+#include <sys/types.h>
 #include "defs.h"
 
 #define BUFFERS_SIZE 1024
