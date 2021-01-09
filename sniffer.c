@@ -10,9 +10,9 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#define DEBUG
-#if defined(DEBUG)
-#define TAG "TAG "
+#define STATUS_TAG
+#if defined(STATUS_TAG)
+#define TAG "STATUS:"
 #else
 #define TAG ""
 #endif
@@ -64,7 +64,8 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Lin
 	while(current != list->tail) {
 		struct Conversation *object = (struct Conversation*)current->object;
 		if(object->source_port == source_port && object->dest_port == dest_port &&
-			object->source_ip.s_addr == source_ip.s_addr && object->dest_ip.s_addr == dest_ip.s_addr) {
+			object->source_ip.s_addr == source_ip.s_addr && object->dest_ip.s_addr == dest_ip.s_addr &&
+			packet.transport_type == object->protocol) {
 			++object->packet_count;
 			object->total_packet_len += len;
 			object->totoal_packet_payload_len += packet.message_len;
@@ -81,6 +82,7 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Lin
 		conv->packet_count = 1;
 		conv->total_packet_len = len;
 		conv->totoal_packet_payload_len = packet.message_len;
+		conv->protocol = packet.transport_type;
 		Linked_list_push_front(list, conv);
 	}
 }
@@ -93,7 +95,7 @@ void *message_reporter(void *args)
 	while(1) {
 		++total_count;
 		sleep(LOGS_DIST);
-		syslog(LOG_DEBUG, TAG"GENERAL STATUS(%d):", total_count);
+		syslog(LOG_INFO, TAG"GENERAL STATUS(%d):", total_count);
 		int count = 0;
 		struct Linked_list_node *head = Linked_list_cut(conv_list);
 		struct Linked_list_node *current = head;
@@ -102,12 +104,12 @@ void *message_reporter(void *args)
 			struct Conversation *object = (struct Conversation *)current->object;
 			inet_ntop(AF_INET, &(object->dest_ip), source, INET_ADDRSTRLEN);
 			inet_ntop(AF_INET, &(object->source_ip), dest, INET_ADDRSTRLEN);
-			syslog(LOG_DEBUG, TAG"Conversation(%d).(%d)", total_count, count);
-			syslog(LOG_DEBUG, TAG"Source: %s:%d", source, ntohs(object->source_port));
-			syslog(LOG_DEBUG, TAG"Desten: %s:%d", dest, ntohs(object->dest_port));
-			syslog(LOG_DEBUG, TAG"number of exchanged packets: %d", object->packet_count);
-			syslog(LOG_DEBUG, TAG"Total size: %dB", object->total_packet_len);
-			syslog(LOG_DEBUG, TAG"Total net size: %dB", object->totoal_packet_payload_len);
+			syslog(LOG_INFO, TAG"Conversation(%d).(%d)", total_count, count);
+			syslog(LOG_INFO, TAG"Source: %s:%d", source, ntohs(object->source_port));
+			syslog(LOG_INFO, TAG"Desten: %s:%d at [%s]", dest, ntohs(object->dest_port), transport_header_types_names[object->protocol]);
+			syslog(LOG_INFO, TAG"packet count: %d", object->packet_count);
+			syslog(LOG_INFO, TAG"Total size: %dB", object->total_packet_len);
+			syslog(LOG_INFO, TAG"Total net size: %dB", object->totoal_packet_payload_len);
 			current = current->next;
 		}
 		free_linked_list(head);
@@ -132,20 +134,20 @@ void HTTP_message_analyser(const char *message, int len)
 		char *version = strtok(NULL, " ");
 		char *status_code = strtok(NULL, " ");
 		char *phrase = strtok(NULL, "\r");
-		syslog(LOG_INFO, "[Status line: %s/%s: %s[%s]]", type, version, phrase, status_code);
+		syslog(LOG_DEBUG, "[Status line: %s/%s: %s[%s]]", type, version, phrase, status_code);
 	} else if(!strcmp(type, "GET") || !strcmp(type, "POST")) { //Message is a request
 		char *request = type;
 		char *argument = strtok(NULL, " ");
 		type = strtok(NULL, "/");
 		char *version = strtok(NULL, "\r");
-		syslog(LOG_INFO, "[Status line: %s-%s: %s(%s)]", type, version, request, argument);
+		syslog(LOG_DEBUG, "[Status line: %s-%s: %s(%s)]", type, version, request, argument);
 	} else {
 		message_cpy[strlen(type)] = ' ';
 		char *head = message_cpy, *current = message_cpy;
 		while((head - message_cpy) < len-1) {
 			if(*current == '\n' || *current == '\0') {
 				*current = '\0';
-				syslog(LOG_INFO, "HTTP Content: %s", head);
+				syslog(LOG_DEBUG, "HTTP Content: %s", head);
 				head = current + 1;
 			} else if(!isprint(*current))
 				*current = '.';
@@ -160,7 +162,7 @@ void HTTP_message_analyser(const char *message, int len)
 		names_values[num++] = strtok(NULL, "\r");
 	} while(strcmp("\r", names_values[num-2]));
 	for(int i = 0; i < (num-2); i+=2)
-		syslog(LOG_INFO, "[Header: %s = %s]", names_values[i], names_values[i+1]);
+		syslog(LOG_DEBUG, "[Header: %s = %s]", names_values[i], names_values[i+1]);
 	free(message_cpy);
 }
 
@@ -183,11 +185,11 @@ void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_c
 		struct UDP_header *udp = (struct UDP_header*)formatted.transport_header;
 		source_port = udp->source_port, dest_port = udp->dest_port; 
 	}
-	syslog(LOG_INFO, "(%03u):packet captured: [%s][%s][%s]", ++(count), "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
-	syslog(LOG_INFO, "Source: %s:%d", source, ntohs(source_port));
-	syslog(LOG_INFO, "Desten: %s:%d", dest, ntohs(dest_port));
-	syslog(LOG_INFO, "packet length: %d", pkthdr->len);
-	syslog(LOG_INFO, "Message length: %d", formatted.message_len);
+	syslog(LOG_DEBUG, "(%03u):packet captured: [%s][%s][%s]", ++(count), "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
+	syslog(LOG_DEBUG, "Source: %s:%d", source, ntohs(source_port));
+	syslog(LOG_DEBUG, "Desten: %s:%d", dest, ntohs(dest_port));
+	syslog(LOG_DEBUG, "packet length: %d", pkthdr->len);
+	syslog(LOG_DEBUG, "Message length: %d", formatted.message_len);
 
 	switch (msg_type)
 	{

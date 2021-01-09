@@ -88,6 +88,7 @@ struct Conversation
     u_short source_port;
     struct in_addr dest_ip;
     struct in_addr source_ip;
+    int protocol;
     int packet_count;
     int total_packet_len;
     int totoal_packet_payload_len;
