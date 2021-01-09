@@ -36,7 +36,8 @@ struct IP_header
     u_char time_to_live;
     u_char protocol;
     u_short check_sum;
-    struct in_addr source, dest;
+    struct in_addr dest;
+    struct in_addr source;
 };
 
 extern const char *transport_header_types_names[];
@@ -79,6 +80,18 @@ struct Formatted_packet
     int transport_type;
     const u_char *message;
     u_int message_len;
+};
+
+struct Conversation
+{
+    u_short dest_port;
+    u_short source_port;
+    struct in_addr dest_ip;
+    struct in_addr source_ip;
+    int protocol;
+    int packet_count;
+    int total_packet_len;
+    int totoal_packet_payload_len;
 };
 
 struct Formatted_packet format(const u_char*, int);

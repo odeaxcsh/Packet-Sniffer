@@ -1,5 +1,5 @@
 all: dns_header.o defs.o
-	gcc -w defs.o dns_header.o sniffer.c -lpcap -o sniffer
+	gcc -w defs.o dns_header.o sniffer.c -lpcap -pthread -o sniffer
 	if [ -e defs.h.gch ]; then rm defs.h.gch; fi
 	if [ -e dns_header.h.gch ]; then rm dns_header.h.gch; fi
 	if [ -e dns_header.o ]; then rm dns_header.o; fi
@@ -8,7 +8,7 @@ all: dns_header.o defs.o
 dns_header.o:
 	gcc -c dns_header.c -o dns_header.o
 
- defs.o:
+defs.o:
 	gcc -c defs.c -o defs.o
 
 clean:
