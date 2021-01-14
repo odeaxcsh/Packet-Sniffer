@@ -10,9 +10,8 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#define STATUS_TAG
 #if defined(STATUS_TAG)
-#define TAG "STATUS:"
+#define TAG " (status) "
 #else
 #define TAG ""
 #endif
@@ -22,6 +21,12 @@
 #include "linked_list.h"
 #include "dns_header.h"
 #include "defs.h"
+
+struct Status_information
+{
+	int tcp_count, udp_count;
+	struct Linked_list *list;
+};
 
 int isnumber(const char *string) {
    char *end = NULL;
@@ -47,8 +52,9 @@ int message_type(struct Formatted_packet packet)
 	else return UNSUPPORTED;
 }
 
-void message_reporter_update(struct Formatted_packet packet, int len, struct Linked_list *list)
+void message_reporter_update(struct Formatted_packet packet, int len, struct Status_information *info)
 {
+	struct Linked_list *list = info->list;
 	u_short source_port, dest_port;
 	if(packet.transport_type == TCP) {
 		struct TCP_header *tcp = (struct TCP_header*)packet.transport_header;
@@ -57,7 +63,6 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Lin
 		struct UDP_header *udp = (struct UDP_header*)packet.transport_header;
 		source_port = udp->source_port, dest_port = udp->dest_port; 
 	}
-
 	struct in_addr source_ip = packet.IP->source, dest_ip = packet.IP->dest;
 
 	struct Linked_list_node *current = list->head->next;
@@ -84,42 +89,48 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Lin
 		conv->totoal_packet_payload_len = packet.message_len;
 		conv->protocol = packet.transport_type;
 		Linked_list_push_front(list, conv);
+		if(conv->protocol == TCP)
+			++info->tcp_count;
+		else if(conv->protocol == UDP)
+			++info->udp_count;
 	}
 }
 
 void *message_reporter(void *args)
 {
-	struct Linked_list *conv_list = (struct Linked_list*)args;
+	struct Status_information *info = (struct Status_information*)args;
+	struct Linked_list *conv_list = info->list;
 	char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
 	int total_count = 0;
 	while(1) {
 		++total_count;
 		sleep(LOGS_DIST);
+		int udp_count = 0, tcp_count = 0, count = 0;
 		syslog(LOG_INFO, TAG"GENERAL STATUS(%d):", total_count);
-		int count = 0;
-		struct Linked_list_node *head = Linked_list_cut(conv_list);
-		struct Linked_list_node *current = head;
-		while(current != NULL) {
+		struct Linked_list_node *current = conv_list->head->next;
+		while(current != conv_list->tail) {
 			++count;
 			struct Conversation *object = (struct Conversation *)current->object;
 			inet_ntop(AF_INET, &(object->dest_ip), source, INET_ADDRSTRLEN);
 			inet_ntop(AF_INET, &(object->source_ip), dest, INET_ADDRSTRLEN);
-			syslog(LOG_INFO, TAG"Conversation(%d).(%d)", total_count, count);
+			syslog(LOG_INFO, TAG"Conversation(%d).(%d) at [%s]", total_count, count,  transport_header_types_names[object->protocol]);
 			syslog(LOG_INFO, TAG"Source: %s:%d", source, ntohs(object->source_port));
-			syslog(LOG_INFO, TAG"Desten: %s:%d at [%s]", dest, ntohs(object->dest_port), transport_header_types_names[object->protocol]);
+			syslog(LOG_INFO, TAG"Desten: %s:%d", dest, ntohs(object->dest_port));
 			syslog(LOG_INFO, TAG"packet count: %d", object->packet_count);
 			syslog(LOG_INFO, TAG"Total size: %dB", object->total_packet_len);
 			syslog(LOG_INFO, TAG"Total net size: %dB", object->totoal_packet_payload_len);
 			current = current->next;
 		}
-		free_linked_list(head);
+		syslog(LOG_INFO, TAG"(%d)-Number of UDP conversations: %d", total_count, info->udp_count);
+		syslog(LOG_INFO, TAG"(%d)-Number of TCP conversations: %d", total_count, info->tcp_count);
+		info->tcp_count = info->udp_count = 0;
 	}
 }
 
-void message_reporter_init(struct Linked_list *conv_list)
+void message_reporter_init(struct Status_information *info)
 {
 	pthread_t thread_id;
-	if(pthread_create(&thread_id, NULL, message_reporter, conv_list))
+	if(pthread_create(&thread_id, NULL, message_reporter, info))
 		printf("General Reporter cannot be initialized!");
 }
 
@@ -170,7 +181,7 @@ void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_c
 {
 	static int count = 0;
 	struct Formatted_packet formatted = format(packet, pkthdr->len);
-	message_reporter_update(formatted, pkthdr->len, (struct Linked_list*) arg);
+	message_reporter_update(formatted, pkthdr->len, (struct Status_information*) arg);
 	int msg_type = message_type(formatted);
 	if(msg_type == UNSUPPORTED)
 		return;
@@ -289,9 +300,11 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	struct Linked_list *conversations_list = create_linke_list();
-	message_reporter_init(conversations_list);
-	pcap_loop(handle, -1, call_back_function, (void*)conversations_list);
+	struct Status_information *info = (struct Status_information*)malloc(sizeof(struct Status_information));
+	info->list = create_linke_list();
+	info->tcp_count = info->udp_count = 0;
+	message_reporter_init(info);
+	pcap_loop(handle, -1, call_back_function, (void*)info);
 	pcap_close(handle);
 	free(device_name);
 }
