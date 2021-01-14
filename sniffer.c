@@ -25,6 +25,8 @@
 #include "dns_header.h"
 #include "defs.h"
 
+int message_reporter_is_working = 0;
+
 struct Status_information
 {
 	int tcp_count, udp_count;
@@ -57,6 +59,9 @@ int message_type(struct Formatted_packet packet)
 
 void message_reporter_update(struct Formatted_packet packet, int len, struct Status_information *info)
 {
+	while(message_reporter_is_working)
+	;
+
 	struct Linked_list *list = info->list;
 	u_short source_port, dest_port;
 	if(packet.transport_type == TCP) {
@@ -109,8 +114,11 @@ void *message_reporter(void *args)
 	int prev_udp_count = 0, prev_tcp_count=0;
 	#endif
 	while(1) {
-		++total_count;
+		message_reporter_is_working = 0;
 		sleep(LOGS_DIST);
+		message_reporter_is_working = 1;
+
+		++total_count;
 		int udp_count = 0, tcp_count = 0, count = 0;
 		syslog(LOG_INFO, STATUS_TAG"GENERAL STATUS(%d):", total_count);
 		struct Linked_list_node *current = conv_list->head->next;
