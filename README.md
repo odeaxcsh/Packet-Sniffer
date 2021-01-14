@@ -2,7 +2,7 @@
 Sniffer is a simple packet sniffer that analyzes HTTP and DNS packets with details and also gives general information about TCP and UDP conversations. Sniffer is written in c and uses libpcap library to read and maybe filter packets coming from network interface controllers.
 
 ## Compile and Run
-To compile C files you must have libpcap installed, if you don't, this command will do it for you.
+To compile C files you must have libpcap installed, if you don't, this command do it for you.
 ``` bash
 sudo apt install libpcap-dev # Debian and Ubuntu only
 ```
@@ -13,17 +13,17 @@ Now after compiling code, the code can run via running this command
 ``` bash
 sudo ./sniffer [the device you want to sniff]
 ```
-And if you don't know which device do you want to sniff use `sudo ./sniffer` and then choose from the listed devices. if you still don't know your choice just let time pass. code will choose someone(the first one) automatically.
+If you don't know which device you want to sniff use `sudo ./sniffer` and then choose from the listed devices. If you still don't know your choice just let time pass, code will choose the first one automatically.
 
 
-Program won't show you outputs directly rather generates some logs using syslog which I know in `Ubuntu 20.04` they are stored in `/var/log/syslog/` but it differs from OS to OS.
+Program won't show you outputs directly rather generates some logs using syslog which in `ubuntu 20.04` they are stored in `/var/log/syslog/` but it differs from OS to OS.
 you can also use the flowing command to get logs that is cleaner than searching through thousands of logs to find program logs.
 ``` bash
 tail -f /var/log/syslog | grep Sniffer
 ```
 
 ## Supported OSs
-First of all, Note that this code hasn't been tested in any operating system but `ubuntu 20.04`. If you are a Linux user there mustn't be problem in using Sniffer while you're having libpcap installed and also know how to find logs in your computer. Mac is really unknown to me. and at last Windows, I think my code isn't great enough. :).
+First of all, Note that this code hasn't been tested in any operating system but `ubuntu 20.04`. If you are a Linux user there mustn't be problem in using Sniffer while you're having libpcap installed and also know how to find logs in your computer.
 
 ## Output Format
 ### Output when a HTTP packet is detected
@@ -101,7 +101,7 @@ python http_client.py [HTTP server IP][HTTP server port] [options]
 default value for IP:Port is `127.0.0.1:80`.
 
 ## General test
-If you are not interested to do all of this to just testing a code you can run `launch.sh`. This bash script will compile, run, test, and show the output of code for you. The script needs some necessary inputs. So the correct form of use is:
+If you are not interested to do all of this to just testing a code you can run `launch.sh`. This bash script will compile, run, test, and show the output of code for you. The script needs some necessary inputs. So the correct form of use is
 ``` bash
 sudo ./lanch.sh <number of clients> <delay of each client>
 ```
