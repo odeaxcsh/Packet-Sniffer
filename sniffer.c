@@ -10,10 +10,13 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#if defined(STATUS_TAG)
-#define TAG " (status) "
+#define DEBUG_ON
+#define STATUS_TAG_ENABLED
+#if defined(STATUS_TAG_ENABLED)
+#undef STATUS_TAG
+#define STATUS_TAG " (status) "
 #else
-#define TAG ""
+#define STATUS_TAG ""
 #endif
 #define INPUTS_TIMEOUT 3 //seconds
 #define LOGS_DIST 30
@@ -102,27 +105,42 @@ void *message_reporter(void *args)
 	struct Linked_list *conv_list = info->list;
 	char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
 	int total_count = 0;
+	#ifdef DEBUG_ON
+	int prev_udp_count = 0, prev_tcp_count=0;
+	#endif
 	while(1) {
 		++total_count;
 		sleep(LOGS_DIST);
 		int udp_count = 0, tcp_count = 0, count = 0;
-		syslog(LOG_INFO, TAG"GENERAL STATUS(%d):", total_count);
+		syslog(LOG_INFO, STATUS_TAG"GENERAL STATUS(%d):", total_count);
 		struct Linked_list_node *current = conv_list->head->next;
 		while(current != conv_list->tail) {
 			++count;
 			struct Conversation *object = (struct Conversation *)current->object;
 			inet_ntop(AF_INET, &(object->dest_ip), source, INET_ADDRSTRLEN);
 			inet_ntop(AF_INET, &(object->source_ip), dest, INET_ADDRSTRLEN);
-			syslog(LOG_INFO, TAG"Conversation(%d).(%d) at [%s]", total_count, count,  transport_header_types_names[object->protocol]);
-			syslog(LOG_INFO, TAG"Source: %s:%d", source, ntohs(object->source_port));
-			syslog(LOG_INFO, TAG"Desten: %s:%d", dest, ntohs(object->dest_port));
-			syslog(LOG_INFO, TAG"packet count: %d", object->packet_count);
-			syslog(LOG_INFO, TAG"Total size: %dB", object->total_packet_len);
-			syslog(LOG_INFO, TAG"Total net size: %dB", object->totoal_packet_payload_len);
+			if(object->protocol == TCP)
+				++tcp_count;
+			else if(object->protocol == UDP)
+				++udp_count;
+			syslog(LOG_INFO, STATUS_TAG"Conversation(%d).(%d) at [%s]", total_count, count,  transport_header_types_names[object->protocol]);
+			syslog(LOG_INFO, STATUS_TAG"Source: %s:%d", source, ntohs(object->source_port));
+			syslog(LOG_INFO, STATUS_TAG"Desten: %s:%d", dest, ntohs(object->dest_port));
+			syslog(LOG_INFO, STATUS_TAG"packet count: %d", object->packet_count);
+			syslog(LOG_INFO, STATUS_TAG"Total size: %dB", object->total_packet_len);
+			syslog(LOG_INFO, STATUS_TAG"Total net size: %dB", object->totoal_packet_payload_len);
 			current = current->next;
 		}
-		syslog(LOG_INFO, TAG"(%d)-Number of UDP conversations: %d", total_count, info->udp_count);
-		syslog(LOG_INFO, TAG"(%d)-Number of TCP conversations: %d", total_count, info->tcp_count);
+		#ifdef DEBUG_ON
+		if(((tcp_count - prev_tcp_count) != info->tcp_count) || ((udp_count - prev_udp_count) != info->udp_count))
+			syslog(LOG_ALERT, "[ERR]: A bug detected: Counting Conversation Problem.");
+		prev_tcp_count = tcp_count;
+		prev_udp_count = udp_count;
+		#endif
+		syslog(LOG_INFO, STATUS_TAG"(%d)-UDP Count: %d", total_count, udp_count);
+		syslog(LOG_INFO, STATUS_TAG"(%d)-TCP Count: %d", total_count, tcp_count);
+		syslog(LOG_INFO, STATUS_TAG"(%d)-New UDP: %d", total_count, info->udp_count);
+		syslog(LOG_INFO, STATUS_TAG"(%d)-New TCP: %d", total_count, info->tcp_count);
 		info->tcp_count = info->udp_count = 0;
 	}
 }
