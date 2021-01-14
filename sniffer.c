@@ -13,7 +13,6 @@
 #define DEBUG_ON
 #define STATUS_TAG_ENABLED
 #if defined(STATUS_TAG_ENABLED)
-#undef STATUS_TAG
 #define STATUS_TAG " (status) "
 #else
 #define STATUS_TAG ""
@@ -207,6 +206,10 @@ void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_c
 {
 	static int count = 0;
 	struct Formatted_packet formatted = format(packet, pkthdr->len);
+	#if defined(DEBUG_ON)
+	if((ntohs(formatted.IP->total_len) + sizeof(struct Ethernet_header)) != pkthdr->len)
+		syslog(LOG_ERR, "[ERR]: A bug detected: Packet size doesn't match with headers information.");
+	#endif
 	message_reporter_update(formatted, pkthdr->len, (struct Status_information*) arg);
 	int msg_type = message_type(formatted);
 	if(msg_type == UNSUPPORTED)
