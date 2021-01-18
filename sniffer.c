@@ -10,10 +10,9 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#define DEBUG_ON
 #define STATUS_TAG_ENABLED
 #if defined(STATUS_TAG_ENABLED)
-#define STATUS_TAG " (status) "
+#define STATUS_TAG "(status) "
 #else
 #define STATUS_TAG ""
 #endif
@@ -25,6 +24,13 @@
 #include "defs.h"
 
 int message_reporter_is_working = 0;
+
+#define swap(x,y) do \ 
+   { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
+     	memcpy(swap_temp,&y,sizeof(x)); \
+     	memcpy(&y,&x,       sizeof(x)); \
+     	memcpy(&x,swap_temp,sizeof(x)); \
+    } while(0)
 
 struct Status_information
 {
@@ -71,6 +77,11 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Sta
 		source_port = udp->source_port, dest_port = udp->dest_port; 
 	}
 	struct in_addr source_ip = packet.IP->source, dest_ip = packet.IP->dest;
+	int is_a_to_b = (source_ip.s_addr) < (dest_ip.s_addr);
+	if(!is_a_to_b) {
+		swap(source_ip, dest_ip);
+		swap(dest_port, source_port);
+	}
 
 	struct Linked_list_node *current = list->head->next;
 	while(current != list->tail) {
@@ -81,10 +92,13 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Sta
 			++object->packet_count;
 			object->total_packet_len += len;
 			object->totoal_packet_payload_len += packet.message_len;
+			if(is_a_to_b) 
+				++object->a_to_bo_count;
+			else ++object->b_to_a_count;
 			break;
 		} else current = current->next;
 	}
-
+	
 	if(current == list->tail) {
 		struct Conversation *conv = (struct Conversation *)malloc(sizeof(struct Conversation));
 		conv->dest_ip = dest_ip;
@@ -95,6 +109,8 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Sta
 		conv->total_packet_len = len;
 		conv->totoal_packet_payload_len = packet.message_len;
 		conv->protocol = packet.transport_type;
+		conv->a_to_bo_count = is_a_to_b;
+		conv->b_to_a_count = !is_a_to_b;
 		Linked_list_push_front(list, conv);
 		if(conv->protocol == TCP)
 			++info->tcp_count;
@@ -133,7 +149,7 @@ void *message_reporter(void *args)
 			syslog(LOG_INFO, STATUS_TAG"Conversation(%d).(%d) at [%s]", total_count, count,  transport_header_types_names[object->protocol]);
 			syslog(LOG_INFO, STATUS_TAG"Source: %s:%d", source, ntohs(object->source_port));
 			syslog(LOG_INFO, STATUS_TAG"Desten: %s:%d", dest, ntohs(object->dest_port));
-			syslog(LOG_INFO, STATUS_TAG"packet count: %d", object->packet_count);
+			syslog(LOG_INFO, STATUS_TAG"packet count: <-%02d <-%02d->  %02d->, ", object->b_to_a_count, object->packet_count, object->a_to_bo_count);
 			syslog(LOG_INFO, STATUS_TAG"Total size: %dB", object->total_packet_len);
 			syslog(LOG_INFO, STATUS_TAG"Total net size: %dB", object->totoal_packet_payload_len);
 			current = current->next;

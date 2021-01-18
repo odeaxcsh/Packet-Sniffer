@@ -92,6 +92,8 @@ struct Conversation
     int packet_count;
     int total_packet_len;
     int totoal_packet_payload_len;
+    int a_to_bo_count;
+    int b_to_a_count;
 };
 
 struct Formatted_packet format(const u_char*, int);
