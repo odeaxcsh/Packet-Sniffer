@@ -9,6 +9,20 @@
 #define ETHERNET_ADDR_LEN 6
 #define ETHERNET_LEN (2*ETHERNET_ADDR_LEN + 2)
 
+// #define STATUS_TAG_ENABLED
+// #define PACKET_TAG_ENABLED
+
+#if defined(STATUS_TAG_ENABLED)
+#define STATUS_TAG "(status) "
+#else
+#define STATUS_TAG ""
+#endif
+#if defined(PACKET_TAG_ENABLED)
+#define PACKET_TAG "(packet) "
+#else
+#define PACKET_TAG ""
+#endif
+
 extern const char *message_types_names[];
 
 enum MESSAGES_TYPES

@@ -10,12 +10,6 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#define STATUS_TAG_ENABLED
-#if defined(STATUS_TAG_ENABLED)
-#define STATUS_TAG "(status) "
-#else
-#define STATUS_TAG ""
-#endif
 #define INPUTS_TIMEOUT 3 //seconds
 #define LOGS_DIST 30
 
@@ -186,20 +180,20 @@ void HTTP_message_analyser(const char *message, int len)
 		char *version = strtok(NULL, " ");
 		char *status_code = strtok(NULL, " ");
 		char *phrase = strtok(NULL, "\r");
-		syslog(LOG_DEBUG, "[Status line: %s/%s: %s[%s]]", type, version, phrase, status_code);
+		syslog(LOG_DEBUG, PACKET_TAG"[Status line: %s/%s: %s[%s]]", type, version, phrase, status_code);
 	} else if(!strcmp(type, "GET") || !strcmp(type, "POST")) { //Message is a request
 		char *request = type;
 		char *argument = strtok(NULL, " ");
 		type = strtok(NULL, "/");
 		char *version = strtok(NULL, "\r");
-		syslog(LOG_DEBUG, "[Status line: %s-%s: %s(%s)]", type, version, request, argument);
+		syslog(LOG_DEBUG, PACKET_TAG"[Status line: %s-%s: %s(%s)]", type, version, request, argument);
 	} else {
 		message_cpy[strlen(type)] = ' ';
 		char *head = message_cpy, *current = message_cpy;
 		while((head - message_cpy) < len-1) {
 			if(*current == '\n' || *current == '\0') {
 				*current = '\0';
-				syslog(LOG_DEBUG, "HTTP Content: %s", head);
+				syslog(LOG_DEBUG, PACKET_TAG"HTTP Content: %s", head);
 				head = current + 1;
 			} else if(!isprint(*current))
 				*current = '.';
@@ -214,7 +208,7 @@ void HTTP_message_analyser(const char *message, int len)
 		names_values[num++] = strtok(NULL, "\r");
 	} while(strcmp("\r", names_values[num-2]));
 	for(int i = 0; i < (num-2); i+=2)
-		syslog(LOG_DEBUG, "[Header: %s = %s]", names_values[i], names_values[i+1]);
+		syslog(LOG_DEBUG, PACKET_TAG"[Header: %s = %s]", names_values[i], names_values[i+1]);
 	free(message_cpy);
 }
 
@@ -241,11 +235,11 @@ void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_c
 		struct UDP_header *udp = (struct UDP_header*)formatted.transport_header;
 		source_port = udp->source_port, dest_port = udp->dest_port; 
 	}
-	syslog(LOG_DEBUG, "(%03u):packet captured: [%s][%s][%s]", ++(count), "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
-	syslog(LOG_DEBUG, "Source: %s:%d", source, ntohs(source_port));
-	syslog(LOG_DEBUG, "Desten: %s:%d", dest, ntohs(dest_port));
-	syslog(LOG_DEBUG, "packet length: %d", pkthdr->len);
-	syslog(LOG_DEBUG, "Message length: %d", formatted.message_len);
+	syslog(LOG_DEBUG, PACKET_TAG"(%03u):packet captured: [%s][%s][%s]", ++(count), "IP", transport_header_types_names[formatted.transport_type], message_types_names[msg_type]);
+	syslog(LOG_DEBUG, PACKET_TAG"Source: %s:%d", source, ntohs(source_port));
+	syslog(LOG_DEBUG, PACKET_TAG"Desten: %s:%d", dest, ntohs(dest_port));
+	syslog(LOG_DEBUG, PACKET_TAG"packet length: %d", pkthdr->len);
+	syslog(LOG_DEBUG, PACKET_TAG"Message length: %d", formatted.message_len);
 
 	switch (msg_type)
 	{
