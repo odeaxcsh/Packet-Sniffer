@@ -10,24 +10,27 @@ function print_help
     echo "       -c --conversations                                     To display general logs [Conversations detail]"
     echo "       -p --packets                                           To display packets details [HTTP‌ and DNS‌ packets detail]"
     echo "                                                              "
-    echo "       -dns --DNS‌-generator [--url URL]                       If this option is used program generates some DNS packets to test code functionality"
-    echo "                                                              If url is not set then code uses pishtazhttp.xyz or google.com according to if sniffing device is loop back or is not"      
-    echo "       -http --HTTP-generator [--delay seconds]               If this option is passed program generates some HTTP packets to test code functionality"
+    echo "       URL‌s could be replaced by IP, code is compatible, so correct tense is --url [URL/IP]"
+    echo "                                                                                          "
+    echo "       -http --HTTP-generator [--server IP] [--delay seconds] [--url URL]   If this option is passed program generates some HTTP packets to test code functionality"
     echo "                                                              --delay is used to control packets congestion"
+    echo "                                                              use --server to run an HTTP server."
     echo "                                                              "
     echo "       -s --seperated                                         to compile code in such a way that prints tag before logs for example, Sniffer: (status), instead of just Sniffer:"
-         "                                                              Note that if you ues any of -c or -t this option will be set automatically"   
+    echo "                                                              Note that if you ues any of -c or -t this option will be set automatically"   
     echo "       -t --tshark                                            Program runs tshark and stores conversations in ./General-Logs-test-reslut"
     echo "       -v --version                                           Shows code version"
     echo "       -h --help                                              Help page"
 }
 
-dns_packet=false
 http_packet=false
 logs_print=false
 status_print=false
 wireshark_cmp=false
 seperated_comp=false
+create_http_server=false
+http_packet_delay=15
+http_url="127.1.1.80"
 
 device_name="$1"
 if [[ $device_name = -* ]]
@@ -50,24 +53,27 @@ do
             ;;
         --HTTP-genrator | -http)
             http_packet=true
+
+            if [[ "$2" = --server ]]
+            then
+                create_http_server=true
+                http_server_ip="$3"
+                shift 2
+            fi
+
             if [[ "$2" = --delay ]]
             then
                 http_packet_delay="$3"
                 shift 2
-            else
-                http_packet_delay=15
             fi
-            ;;
-        --DNS-generator | -dns)
-            dns_packet=true
+
             if [[ "$2" = --url ]]
-            then
-                dns_url="$3"
-                shift
-            else
-                [[ device_name = lo ]] && dns_url="pishtazhttp.xyz" || dns_url="google.com"
+            then 
+                http_url="$3"
+                shift 2
             fi
             ;;
+
         --tshark | -t)
             wireshark_cmp=true
             ;;
@@ -96,57 +102,40 @@ done
 # compile files
 make clean > /dev/null
 
-if $logs_print or $status_print or $seperated_comp
+if $logs_print || $status_print || $seperated_comp
 then
-    make seperated > /dev/null
+    make seperated  > /dev/null
 else
     make normal > /dev/null
 fi
 
-# dns url check
-if $dns_packet and curl --output /dev/null --silent --head --fail "$dns_url"
+if $create_http_server
 then
-    is_dns_url_valid=true
-else
-    is_dns_url_valid=false
-    if $dns_packet
+    if [[ $device_name != lo ]]
     then
-        echo "Warning: Entered URL is not valid. If you sure you want to continue press Enter"
-        read
+        echo "Creating HTTP‌ server will not effct on non-loop back network interfaces"
+        echo "Do you want to Continue? [Y/other keys]"
+        read -p "" input && [[ $input == [yY] || $input == [yY][eE][sS] ]] &&  python http_server.py $http_url 80 >/dev/null 2>&1 &
+    else
+        python http_server.py $http_server_ip 80 >/dev/null 2>&1 &
     fi
 fi
 
-#RUN‌ packet generators
-function send_requests
-{
-    while true
-    do 
-    sleep "$3"
-    $1 "$2" > /dev/null
-    done
-}
+# url check
+if $http_packet && curl --output /dev/null --silent --head --fail $http_url
+then
+    is_url_valid=true
+else
+    is_url_valid=false
+    echo "Warning: HTTP server at ${http_url} couldn't be reached. If you sure you want to continue enter y"
+    read -p "" input && [[ $input == [yY] || $input == [yY][eE][sS] ]] && is_url_valid=true
+fi
 
 #if we need both of this packets and server is available then just send packets to that url and this will make everything work
-if $is_dns_url_valid and‌ $http_packet
+if $http_packet && $is_url_valid
 then
-    send_requests http $dns_url $http_packet_delay
-    echo $is_dns_url_valid
-else
-    if $http_packet
-    then
-        if [[ $device_name = lo ]]
-        then
-            python http_server.py 127.1.1.80 80 >/dev/null 2>&1 &
-            python http_client.py -a -m --delay "$http_packet_delay" 127.1.1.80 80 >/dev/null 2>&1 &
-        else
-            send_requests http eu.httpbin.org $http_packet_delay
-        fi
-    elif $dns_packet
-    then
-        send_requests dig $dns_url 5
-    fi
+    python http_client.py -a -m --delay $http_packet_delay $http_url 80 >/dev/null 2>&1 &
 fi
-
 
 trap handle_sigint SIGINT
 function handle_sigint
@@ -157,22 +146,9 @@ function handle_sigint
     done
 }
 
-if $dns_packet and curl --output /dev/null --silent --head --fail "$dns_url"
-then
-    is_dns_url_valid=true
-else
-    is_dns_url_valid=false
-    if $dns_packet
-    then
-        echo "Warning: Entered URL is not valid. If you sure you want to continue press Enter"
-        read
-    fi
-fi
-
-
 function wireshark_conv
 {
-    counter=0
+    counter=000
     while true
     do
         counter=$((counter+1))
