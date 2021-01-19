@@ -16,7 +16,7 @@ function print_help
     echo "                                                              --delay is used to control packets congestion"
     echo "                                                              use --server to run an HTTP server."
     echo "                                                              "
-    echo "       -s --seperated                                         to compile code in such a way that prints tag before logs for example, Sniffer: (status), instead of just Sniffer:"
+    echo "       -s --separated                                         to compile code in such a way that prints tag before logs for example, Sniffer: (status), instead of just Sniffer:"
     echo "                                                              Note that if you ues any of -c or -t this option will be set automatically"   
     echo "       -t --tshark                                            Program runs tshark and stores conversations in ./General-Logs-test-reslut"
     echo "       -v --version                                           Shows code version"
@@ -78,7 +78,7 @@ do
             wireshark_cmp=true
             ;;
 
-        --seperated | -s)
+        --separated | -s)
             seperated_comp=true
            ;;
 
@@ -122,13 +122,16 @@ then
 fi
 
 # url check
-if $http_packet && curl --output /dev/null --silent --head --fail $http_url
+if $http_packet
 then
-    is_url_valid=true
-else
-    is_url_valid=false
-    echo "Warning: HTTP server at ${http_url} couldn't be reached. If you sure you want to continue enter y"
-    read -p "" input && [[ $input == [yY] || $input == [yY][eE][sS] ]] && is_url_valid=true
+    if curl --output /dev/null --silent --head --fail $http_url
+    then
+        is_url_valid=true
+    else
+        is_url_valid=false
+        echo "Warning: HTTP server at ${http_url} couldn't be reached. If you sure you want to continue enter y"
+        read -p "" input && [[ $input == [yY] || $input == [yY][eE][sS] ]] && is_url_valid=true
+    fi
 fi
 
 #if we need both of this packets and server is available then just send packets to that url and this will make everything work
@@ -148,33 +151,21 @@ function handle_sigint
 
 function wireshark_conv
 {
-    counter=000
     while true
     do
-        counter=$((counter+1))
-        tshark -i $device_name -z conv,udp -z conv,tcp -a duration:30 -Q 1> "./logs/${counter}.txt"
-        cat "./logs/${counter}.txt" >> "./logs/all.txt"
+        sleep 30
+        tshark -r ./wireshark_output.pcap -z conv,udp -z conv,tcp -Q 1>> "./all.txt"
     done
 }
 
-my_source=false
 if $wireshark_cmp
 then
-    if [ -e ./logs ]
-    then
-        echo "FATAL: logs folder(or file) going to be used by this program"
-        echo "If you want to context of ./logs be deleted press 'y' and next Enter"
-        echo "If you press any other key logs will be stored without deleting other content on this folder and content of folder may take damage"
-        echo "You can interrupt program execution by pressing CTL + C"
-        read -p "" input && [[ $input == [yY] || $input == [yY][eE][sS] ]] && rm -r -f ./logs/*
-    else
-        mkdir logs
-        my_source=true
-    fi
-	if [ -e ./logs/all.txt ]; then rm ./logs/all.txt; fi
-    touch ./logs/all.txt
+    touch ./all.txt
     wireshark_conv &
-    gnome-terminal --window --title="Tshark - Conversations" -- bash -c "tail -f ./logs/all.txt" &
+    touch ./wireshark_output.pcap
+    chmod o=rw ./wireshark_output.pcap
+    tshark -i $device_name -w wireshark_output.pcap -F pcap -Q &
+    gnome-terminal --window --title="Tshark - Conversations" -- bash -c "tail -f ./all.txt" &
 fi
 
 if $status_print
@@ -188,5 +179,5 @@ then
 fi
 
 ./sniffer $device_name
-if $my_source; then rm -r -f ./logs/; fi
+rm -f all.txt wireshark_output.pcap
 exit
