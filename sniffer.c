@@ -72,6 +72,10 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Sta
 	}
 	struct in_addr source_ip = packet.IP->source, dest_ip = packet.IP->dest;
 	int is_a_to_b = (source_ip.s_addr) < (dest_ip.s_addr);
+
+	if ((source_ip.s_addr) == (dest_ip.s_addr))
+		is_a_to_b = source_port < dest_port;
+			
 	if(!is_a_to_b) {
 		swap(source_ip, dest_ip);
 		swap(dest_port, source_port);
