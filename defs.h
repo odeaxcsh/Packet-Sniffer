@@ -11,7 +11,11 @@
 
 // #define STATUS_TAG_ENABLED
 // #define PACKET_TAG_ENABLED
-
+#if defined(PROTOCOL_LOG_TAG_ENABLED)
+#define PROTOCOL_TAG "(Protocol count) "
+#else 
+#define PROTOCOL_TAG ""
+#endif
 #if defined(STATUS_TAG_ENABLED)
 #define STATUS_TAG "(status) "
 #else
@@ -58,9 +62,13 @@ extern const char *transport_header_types_names[];
 
 enum transport_header_type
 {
+    UNKNOWN = 0,
     TCP = 1,
     UDP = 2
 };
+
+#define BOTH (TCP|UDP)
+
 
 struct TCP_header
 {

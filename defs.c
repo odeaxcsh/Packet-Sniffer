@@ -3,6 +3,8 @@
 
 #define BUFFERS_SIZE 1024
 
+#define STR(x) #x
+#define R_STR(x) STR(x)
 #define UNSUPPORTED 0
 #define ETHERNET_ADDR_LEN 6
 #define ETHERNET_LEN (2*ETHERNET_ADDR_LEN + 2)
@@ -16,9 +18,10 @@ const char *message_types_names[] =
 
 const char *transport_header_types_names[] = 
 {
-    "UNSUPPORTED",
-    "TCP",
-    "UDP"
+    STR(UNKNOWN),
+    STR(TCP),
+    STR(UDP),
+    R_STR(BOTH)
 };
 
 struct Formatted_packet format(const u_char *packet, int pakcet_len)

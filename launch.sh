@@ -180,4 +180,5 @@ fi
 
 ./sniffer $device_name
 rm -f all.txt wireshark_output.pcap
+make clean
 exit

@@ -10,14 +10,28 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-#define INPUTS_TIMEOUT 3 //seconds
+#define INPUTS_TIMEOUT 5 //seconds
+#define PROTOCOL_STATUS_RATE_ON_LOGS_DIST 2
 #define LOGS_DIST 30
 
+#include "protocols_map.h"
 #include "linked_list.h"
 #include "dns_header.h"
 #include "defs.h"
 
 int message_reporter_is_working = 0;
+char IP_class(int ip)
+{
+	if( !(ip & (1 << 7)) ) //Class A IPs start with 0
+		return 'A';
+	else if ( !(ip & (1 << 6)) ) //Class B IPs start with 10
+		return 'B';
+	else if ( !(ip & (1 << 5)) ) //Class C IPs start with 110
+		return 'C';
+	else if ( !(ip & (1 << 4)) ) //Class D IPs start with 1110
+		return 'D';
+	else return 'E'; // Class E IPs start with 1111
+}
 
 #define swap(x,y) do \ 
    { unsigned char swap_temp[sizeof(x) == sizeof(y) ? (signed)sizeof(x) : -1]; \
@@ -55,7 +69,7 @@ int message_type(struct Formatted_packet packet)
 		return DNS;
 	else return UNSUPPORTED;
 }
-
+ 
 void message_reporter_update(struct Formatted_packet packet, int len, struct Status_information *info)
 {
 	while(message_reporter_is_working)
@@ -73,7 +87,7 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Sta
 	struct in_addr source_ip = packet.IP->source, dest_ip = packet.IP->dest;
 	int is_a_to_b = (source_ip.s_addr) < (dest_ip.s_addr);
 
-	if ((source_ip.s_addr) == (dest_ip.s_addr))
+	if((source_ip.s_addr) == (dest_ip.s_addr))
 		is_a_to_b = source_port < dest_port;
 			
 	if(!is_a_to_b) {
@@ -115,6 +129,18 @@ void message_reporter_update(struct Formatted_packet packet, int len, struct Sta
 		else if(conv->protocol == UDP)
 			++info->udp_count;
 	}
+
+	//Upadate protocol packet count
+	int i = 0;
+	for(; i < PROTOCOL_COUNT; ++i)
+		if(protocols[i].using_port == ntohs(source_port) || ntohs(dest_port) == protocols[i].using_port)
+			if(protocols[i].transport_protocol_type & packet.transport_type) {
+				++protocols[i].packet_count;
+				break;
+			}
+
+	if(i == PROTOCOL_COUNT)
+		++protocols[0].packet_count;
 }
 
 void *message_reporter(void *args)
@@ -123,6 +149,8 @@ void *message_reporter(void *args)
 	struct Linked_list *conv_list = info->list;
 	char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
 	int total_count = 0;
+	int log_count = 0;
+
 	#ifdef DEBUG_ON
 	int prev_udp_count = 0, prev_tcp_count=0;
 	#endif
@@ -130,6 +158,15 @@ void *message_reporter(void *args)
 		message_reporter_is_working = 0;
 		sleep(LOGS_DIST);
 		message_reporter_is_working = 1;
+
+		if((++log_count % PROTOCOL_STATUS_RATE_ON_LOGS_DIST) == 0) {
+			syslog(LOG_INFO, PROTOCOL_TAG"PACKET COUNT PER PROTOCOL(%d):", log_count);
+				for(int i = 0; i < PROTOCOL_COUNT; ++i)
+					if(protocols[i].packet_count) {
+						syslog(LOG_INFO, PROTOCOL_TAG"%s[%s at %d]->count = %d", protocols[i].name, transport_header_types_names[protocols[i].transport_protocol_type], protocols[i].using_port, protocols[i].packet_count);
+						protocols[i].packet_count = 0;
+					}
+		}
 
 		++total_count;
 		int udp_count = 0, tcp_count = 0, count = 0;
@@ -323,6 +360,18 @@ int main(int argc, char *argv[])
 	if(pcap_lookupnet(device_name, &net, &mask, pcap_error) == -1) {
 		printf("Couldn't get netmask for device %s: %s\n", device_name, pcap_error);
 		return 1;
+	} else {
+		char ip[INET_ADDRSTRLEN], netmask[INET_ADDRSTRLEN];
+		char hostID[INET_ADDRSTRLEN], netID[INET_ADDRSTRLEN];
+		int i = -1;
+		while((1 << (++i)) & mask);
+		bpf_u_int32 host_id = (net & ~(mask)), net_id = (net & mask);
+		inet_ntop(AF_INET, &(mask), netmask, INET_ADDRSTRLEN);
+		inet_ntop(AF_INET, &(net), ip, INET_ADDRSTRLEN);
+		inet_ntop(AF_INET, &(host_id), hostID, INET_ADDRSTRLEN);
+		inet_ntop(AF_INET, &(net_id), netID, INET_ADDRSTRLEN);
+		printf("IP: %s/%d\t\t Netmask: %s\t\t Class %c\n", ip, i, netmask, IP_class(net));
+		printf("Netword ID: %s\t\t Host ID: %s \t\t\n", netID, hostID);
 	}
 
 	pcap_t *handle = pcap_open_live(device_name, BUFSIZ, 1, 1000, pcap_error);
