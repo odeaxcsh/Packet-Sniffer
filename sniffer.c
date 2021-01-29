@@ -263,8 +263,7 @@ void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_c
 	#endif
 	message_reporter_update(formatted, pkthdr->len, (struct Status_information*) arg);
 	int msg_type = message_type(formatted);
-	if(msg_type == UNSUPPORTED)
-		return;
+
 	char source[INET_ADDRSTRLEN], dest[INET_ADDRSTRLEN];
 	inet_ntop(AF_INET, &(formatted.IP->dest), source, INET_ADDRSTRLEN);
 	inet_ntop(AF_INET, &(formatted.IP->source), dest, INET_ADDRSTRLEN);
@@ -299,16 +298,27 @@ int main(int argc, char *argv[])
 {
 	char *device_name = NULL, pcap_error[PCAP_ERRBUF_SIZE] = { 0 };
 	openlog("Sniffer", 0, LOG_USER);
-	if(argc >= 2)
-		device_name = argv[1];
-	else {
-		pcap_if_t *alldevs, *iterator;
 
-		if(pcap_findalldevs(&alldevs, pcap_error) == -1) {
-			printf("Couldn't find devices due to: %s\n", pcap_error);
-			return 1;
+	pcap_if_t *alldevs, *iterator;
+	struct pcap_addr *addresses;
+	if(pcap_findalldevs(&alldevs, pcap_error) == -1) {
+		printf("Couldn't find devices due to: %s\n", pcap_error);
+		return 1;
+	}
+
+	if(argc >= 2) {
+		for(iterator = alldevs; iterator; iterator = iterator->next)
+			if(!strcmp(iterator->name, argv[1])) 
+				break;
+		
+		if(iterator == NULL) {
+			printf("No such a device\n");
+			exit(1);
+		} else {
+			device_name = iterator->name;
+			addresses = iterator->addresses;
 		}
-
+	} else {
 		int dev_count;
 		for(dev_count = 0, iterator = alldevs; iterator; iterator = iterator->next, ++dev_count)
 			printf("[%01d]-%-15s\t %s\n", dev_count+1, iterator->name, iterator->description);
@@ -332,8 +342,10 @@ int main(int argc, char *argv[])
 					sscanf(input, "%d", &dev_num);
 					if(dev_num <= dev_count) {
 						iterator = alldevs;
-						for(int i = 1; i < dev_num; ++i, iterator = iterator->next);
+						for(int i = 1; i < dev_num; ++i, iterator = iterator->next)
+							;
 						device_name = iterator->name;
+						addresses = iterator->addresses;
 					} else printf("Invalid Number\n");
 				} else {
 					for(iterator = alldevs; iterator; iterator = iterator->next)
@@ -342,16 +354,18 @@ int main(int argc, char *argv[])
 					
 					if(iterator == NULL)
 						printf("No such a device\n");
-					else device_name = iterator->name;
+					else {
+						device_name = iterator->name;
+						addresses = iterator->addresses;
+					}
 				}
 			} else {
 				printf("Timed out \n"
 				"Using default device...\n");
 				device_name = alldevs->name;
+				addresses = alldevs->addresses;
 			}
 		}
-		device_name = strdup(device_name);
-		pcap_freealldevs(alldevs);
 	}
 
 	printf("Running on device: %s\n", device_name);
@@ -361,17 +375,13 @@ int main(int argc, char *argv[])
 		printf("Couldn't get netmask for device %s: %s\n", device_name, pcap_error);
 		return 1;
 	} else {
-		char ip[INET_ADDRSTRLEN], netmask[INET_ADDRSTRLEN];
-		char hostID[INET_ADDRSTRLEN], netID[INET_ADDRSTRLEN];
+		addresses = addresses->next;
+		char netmask[INET_ADDRSTRLEN];
 		int i = -1;
-		while((1 << (++i)) & mask);
-		bpf_u_int32 host_id = (net & ~(mask)), net_id = (net & mask);
+		while((1 << (++i)) & mask)
+			;
 		inet_ntop(AF_INET, &(mask), netmask, INET_ADDRSTRLEN);
-		inet_ntop(AF_INET, &(net), ip, INET_ADDRSTRLEN);
-		inet_ntop(AF_INET, &(host_id), hostID, INET_ADDRSTRLEN);
-		inet_ntop(AF_INET, &(net_id), netID, INET_ADDRSTRLEN);
-		printf("IP: %s/%d\t\t Netmask: %s\t\t Class %c\n", ip, i, netmask, IP_class(net));
-		printf("Netword ID: %s\t\t Host ID: %s \t\t\n", netID, hostID);
+		printf("IP: %s/%d\t\t Netmask: %s\t\t Class %c\n", inet_ntoa(((struct sockaddr_in*)addresses->addr)->sin_addr), i, netmask, IP_class(net));
 	}
 
 	pcap_t *handle = pcap_open_live(device_name, BUFSIZ, 1, 1000, pcap_error);
@@ -398,5 +408,6 @@ int main(int argc, char *argv[])
 	message_reporter_init(info);
 	pcap_loop(handle, -1, call_back_function, (void*)info);
 	pcap_close(handle);
+	pcap_freealldevs(alldevs);
 	free(device_name);
 }

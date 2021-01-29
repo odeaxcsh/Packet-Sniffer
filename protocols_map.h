@@ -14,14 +14,14 @@ struct Protocol
 struct Protocol protocols[]
 =
 {
-    {UNKNOWN, 0, 0, "UNKNOWN"},
+    {UNKNOWN, 0, -1, "UNKNOWN"},
     {BOTH, 0, 1, "TCPMUX"},
     {BOTH, 0, 7,"Echo"},
     {BOTH, 0, 17, "QOTD"},
     {BOTH, 0, 19, "CHARGEN"},
     {TCP, 0, 20, "FTP_Data"},
     {TCP, 0, 21, "FTP_Command"},
-    {TCP, 0, 22, "SSH"},
+    {BOTH, 0, 22, "SSH"},
     {TCP, 0, 23, "TELNET"},
     {BOTH, 0, 25, "SMTP"},
     {BOTH, 0, 37, "Time"},
@@ -30,9 +30,9 @@ struct Protocol protocols[]
     {TCP, 0, 80, "HTTP"},
     {BOTH, 0, 110, "POP3"},
     {TCP, 0, 119, "NNTP"},
-    {TCP, 0, 123, "NTP"},
+    {UDP, 0, 123, "NTP"},
     {BOTH, 0, 143, "IMAP4"},
-    {TCP, 0, 443, "HTTPS"}
+    {BOTH, 0, 443, "HTTPS"}
 };
 
 #define PROTOCOL_COUNT sizeof(protocols)/sizeof(struct Protocol)

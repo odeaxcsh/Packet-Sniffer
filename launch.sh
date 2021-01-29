@@ -9,6 +9,7 @@ function print_help
     echo "                                               "
     echo "       -c --conversations                                     To display general logs [Conversations detail]"
     echo "       -p --packets                                           To display packets details [HTTP‌ and DNS‌ packets detail]"
+    echo "       -l --protocol-count                                    To display packet count classified by protocol"
     echo "                                                              "
     echo "       URL‌s could be replaced by IP, code is compatible, so correct tense is --url [URL/IP]"
     echo "                                                                                          "
@@ -23,6 +24,7 @@ function print_help
     echo "       -h --help                                              Help page"
 }
 
+packet_count=false
 http_packet=false
 logs_print=false
 status_print=false
@@ -86,15 +88,22 @@ do
             print_help
             exit
             ;;
+
         --version | -v)
             echo "v3.4"
             echo "written by Odeaxcsh"
             echo "github.com/odeaxcsh/packet-sniffer"
             exit
             ;;
+
+        -l | --protocol-count)
+            packet_count=true
+            ;;
+        
         --* | -* | *)
             echo "Warning: Ignoring invalid argument" "$1"
             ;;
+        
         esac
         shift
 done
@@ -102,7 +111,7 @@ done
 # compile files
 make clean > /dev/null
 
-if $logs_print || $status_print || $seperated_comp
+if $logs_print || $status_print || $seperated_comp || $packet_count
 then
     make seperated  > /dev/null
 else
@@ -140,14 +149,14 @@ then
     python http_client.py -a -m --delay $http_packet_delay $http_url 80 >/dev/null 2>&1 &
 fi
 
-trap handle_sigint SIGINT
-function handle_sigint
+function kill_all
 {
     for process in $(jobs -p)
     do
         kill $process 2> /dev/null
     done
 }
+trap kill_all SIGINT
 
 function wireshark_conv
 {
@@ -178,7 +187,13 @@ then
     gnome-terminal --window --title="Sniffer - packets" -- bash -c "tail -f /var/log/syslog | grep 'Sniffer: (packet)'" &
 fi
 
+if $packet_count
+then
+    gnome-terminal --window --title="Sniffer - Packet count" -- bash -c "tail -f /var/log/syslog | grep 'Sniffer: (Protocol count)'" &
+fi
+
 ./sniffer $device_name
 rm -f all.txt wireshark_output.pcap
 make clean
+kill_all
 exit
