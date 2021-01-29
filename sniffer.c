@@ -14,10 +14,13 @@
 #define PROTOCOL_STATUS_RATE_ON_LOGS_DIST 2
 #define LOGS_DIST 30
 
+#include "json_formatting.c"
 #include "protocols_map.h"
 #include "linked_list.h"
 #include "dns_header.h"
 #include "defs.h"
+
+FILE *json_file;
 
 int message_reporter_is_working = 0;
 char IP_class(int ip)
@@ -257,6 +260,9 @@ void call_back_function(u_char *arg, const struct pcap_pkthdr *pkthdr, const u_c
 {
 	static int count = 0;
 	struct Formatted_packet formatted = format(packet, pkthdr->len);
+	char *summary = conver_to_json(&formatted);
+	fprintf(json_file, summary);
+	free(summary);
 	#if defined(DEBUG_ON)
 	if((ntohs(formatted.IP->total_len) + sizeof(struct Ethernet_header)) != pkthdr->len)
 		syslog(LOG_ERR, "[ERR]: A bug detected: Packet size doesn't match with headers information.");
@@ -406,8 +412,17 @@ int main(int argc, char *argv[])
 	info->list = create_linke_list();
 	info->tcp_count = info->udp_count = 0;
 	message_reporter_init(info);
-	pcap_loop(handle, -1, call_back_function, (void*)info);
+	int num_count = -1;
+	char *endptr;
+	if(argc > 2)
+		num_count = strtol(argv[2], &endptr, 10);
+	
+	json_file = fopen("output.json", "w");
+	fprintf(json_file, "[\n");
+	pcap_loop(handle, num_count, call_back_function, (void*)info);
+	fprintf(json_file, "]\n");
 	pcap_close(handle);
 	pcap_freealldevs(alldevs);
 	free(device_name);
+	fclose(json_file);
 }
