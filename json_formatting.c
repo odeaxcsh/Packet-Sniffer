@@ -9,17 +9,15 @@
 
 char *JSON_OUTPUT_FORMAT =
 "{ \n"
-"    \"genral\": { \n"
-"        \"source\": { \n"
-"            \"IP\": \"%s\", \n"
-"            \"port\": %u \n"
-"        }, \n"
-"        \"destintaion\": { \n"
-"            \"IP\": \"%s\", \n"
-"            \"port\": %u \n"
-"       }, \n"
-"       \"protocol\": \"%s\" \n"
-"   }\n"
+"    \"source\": { \n"
+"        \"IP\": \"%s\", \n"
+"        \"port\": %u \n"
+"    }, \n"
+"    \"destinataion\": { \n"
+"        \"IP\": \"%s\", \n"
+"        \"port\": %u \n"
+"    }, \n"
+"   \"protocol\": \"%s\" \n"
 "}, \n";
 
 char *conver_to_json(struct Formatted_packet *packet)
