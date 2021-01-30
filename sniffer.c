@@ -380,7 +380,7 @@ int main(int argc, char *argv[])
 	if(pcap_lookupnet(device_name, &net, &mask, pcap_error) == -1) {
 		printf("Couldn't get netmask for device %s: %s\n", device_name, pcap_error);
 		return 1;
-	} else {
+	} else if(addresses) {
 		addresses = addresses->next;
 		char netmask[INET_ADDRSTRLEN];
 		int i = -1;
