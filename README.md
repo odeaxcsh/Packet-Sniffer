@@ -7,7 +7,9 @@ To compile C files you must have libpcap installed, if you don't, this command d
 sudo apt install libpcap-dev # Debian and Ubuntu only
 ```
 
-After installing libpcap, you can simply(if GCC is installed) use Make using `make` to compile and `make clean` to delete the compiled file(It just removes Sniffer object file from directory).
+After installing libpcap, you can simply(if GCC is installed) use Make using `make`, `make normal`, `make separated`  to compile (which diffrent of them are explained later) and `make clean` to delete the compiled file(It just removes Sniffer object file from directory).
+
+
 
 Now after compiling code, the code can run via running this command
 ``` bash
@@ -21,6 +23,16 @@ you can also use the flowing command to get logs that is cleaner than searching 
 ``` bash
 tail -f /var/log/syslog | grep Sniffer
 ```
+
+## make
+The code has an extra option which separates diffrent logs with some tags. this tags makes you able to whach particular logs which you want for example you can use this command to see packets logs.
+``` bash
+tail -f /var/log/syslog | grep 'Sniffer: (packet)'
+```
+To enable this option use `make separated`.
+Tags are `(packet)` for recieved packets log, `(status)` for conversations, and `(Protocol count)`.
+
+The `make` and `make normal` disable this feature and both are the same.
 
 ## Supported OSs
 First of all, Note that this code hasn't been tested in any operating system but `ubuntu 20.04`. If you are a Linux user there mustn't be problem in using Sniffer while you're having libpcap installed and also know how to find logs in your computer.
@@ -103,6 +115,16 @@ default value for IP:Port is `127.0.0.1:80`.
 ## General test
 If you are not interested to do all of this to just testing a code you can run `launch.sh`. This bash script will compile, run, test, and show the output of code for you. The script needs some necessary inputs. So the correct form of use is
 ``` bash
-sudo ./lanch.sh <number of clients> <delay of each client>
+sudo ./lanch.sh <device name> [options]
+    # which options are:
+    # -c --conversation         Displays conversations logs in a new termianl
+    # -p --packets              Displays packets logs in a new terminal
+    # -l --protocol-count       Displays number of packets exchanged over each protocols.
+    # -t --tshark (l|c)         Uses tshark to make information about conversations and protocl count. this information are same as the output of -c and -l cause this option is just to test code.
+    # -http --http-generator    Creates or just requests a HTTP sever to create HTTP packets manually. 
+    # last option gives some extera parameters that are:
+    #       --server IP         Create a local HTTP server on IP and port 80.
+    #       --delay  SEC        HTTP requests are sent every SEC seconds.
+    #       --url    URL/IP     The address of HTTP server. If you have a DNS server running you can add an A class record to it and use IP for IP of server and domain for url which makes you able to generate DNS packets too. but if are not using localhost just put domain as url in --url to generate DNSs.
 ```
 In fact, the mentioned script creates an HTTP server and compiles and runs Sniffer then runs http_clients in number of "number of clients" and with "delay of each client". and after all reads `var/log/syslog` searching for logs.
