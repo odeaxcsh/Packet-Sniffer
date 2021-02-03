@@ -18,7 +18,7 @@ char *JSON_OUTPUT_FORMAT =
 "        \"port\": %u \n"
 "    }, \n"
 "   \"protocol\": \"%s\" \n"
-"}, \n";
+"}";
 
 char *conver_to_json(struct Formatted_packet *packet)
 {
