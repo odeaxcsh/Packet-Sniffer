@@ -19,7 +19,8 @@ function print_help
     echo "                                                              "
     echo "       -s --separated                                         to compile code in such a way that prints tag before logs for example, Sniffer: (status), instead of just Sniffer:"
     echo "                                                              Note that if you ues any of -c or -t this option will be set automatically"   
-    echo "       -t --tshark                                            Program runs tshark and stores conversations in ./General-Logs-test-reslut"
+    echo "       -t [parametrs space seperated] --tshark                With this option he program runs tshark to generate information simultaneously. parameters define which part of information must be genrated"
+    echo "                                                              Parameters are c for conversations and p l for protocol count"
     echo "       -v --version                                           Shows code version"
     echo "       -h --help                                              Help page"
 }
@@ -27,6 +28,7 @@ function print_help
 packet_count=false
 http_packet=false
 logs_print=false
+wireshark_cmp_l=false
 status_print=false
 wireshark_cmp=false
 seperated_comp=false
@@ -77,7 +79,19 @@ do
             ;;
 
         --tshark | -t)
-            wireshark_cmp=true
+            while [[ "$2" =~ ^(l|c) ]] 
+            do
+                if [[ "$2" = c ]]
+                then
+                    wireshark_cmp=true
+                elif [[ "$2" = l ]]
+                then
+                    wireshark_cmp_l=true
+                else
+                    echo "Invalid parameter for -t option. Ignoring: $2"
+                fi
+                shift
+            done
             ;;
 
         --separated | -s)
@@ -170,11 +184,16 @@ function wireshark_conv
 if $wireshark_cmp
 then
     touch ./all.txt
-    wireshark_conv &
+    wireshark_c &
     touch ./wireshark_output.pcap
     chmod o=rw ./wireshark_output.pcap
     tshark -i $device_name -w wireshark_output.pcap -F pcap -Q &
     gnome-terminal --window --title="Tshark - Conversations" -- bash -c "tail -f ./all.txt" &
+fi
+
+if $wireshark_cmp_l
+then
+    tshark -i $device_name -qz io,stat,60,"(tcp.port==80)","(udp.port==53)","(tcp.port==21)","(tcp.port==443)","(tcp.port==123)" > ./logs.txt &
 fi
 
 if $status_print
@@ -193,7 +212,9 @@ then
 fi
 
 ./sniffer $device_name
-rm -f all.txt wireshark_output.pcap
-make clean
+cat ./logs.txt
+rm -f ./logs.txt
+rm -f all.txt wireshark_output.pcap log.txt
 kill_all
+make clean
 exit
