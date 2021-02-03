@@ -11,7 +11,7 @@ After installing libpcap, you can simply(if GCC is installed) use Make using `ma
 
 Now after compiling code, the code can run via running this command
 ``` bash
-sudo ./sniffer [the device you want to sniff]
+sudo ./sniffer [the device you want to sniff] [number of packets] [josn output file]
 ```
 If you don't know which device you want to sniff use `sudo ./sniffer` and then choose from the listed devices. If you still don't know your choice just let time pass, code will choose the first one automatically.
 
