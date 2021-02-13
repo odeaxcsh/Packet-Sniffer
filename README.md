@@ -7,7 +7,7 @@ To compile C files you must have libpcap installed, if you don't, this command d
 sudo apt install libpcap-dev # Debian and Ubuntu only
 ```
 
-After installing libpcap, you can simply(if GCC is installed) use Make using `make`, `make normal`, `make separated`  to compile (which diffrent of them are explained later) and `make clean` to delete the compiled file(It just removes Sniffer object file from directory).
+After installing libpcap, you can simply(if GCC is installed) use Make using `make`, `make normal`, `make separated`  to compile (difference of them is explained later) and `make clean` to delete the compiled file(It just removes Sniffer object file from directory).
 
 
 
@@ -25,7 +25,7 @@ tail -f /var/log/syslog | grep Sniffer
 ```
 
 ## make
-The code has an extra option which separates diffrent logs with some tags. this tags makes you able to whach particular logs which you want for example you can use this command to see packets logs.
+The code has an extra option which separates diffrent logs with some tags. this tags makes you able to watch particular logs which you want. for example you can use this command to see packets logs.
 ``` bash
 tail -f /var/log/syslog | grep 'Sniffer: (packet)'
 ```
